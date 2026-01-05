@@ -13,3 +13,39 @@ echo "This report generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # - jq
 command -v aws >/dev/null 2>&1 || { echo "aws CLI required"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq required"; exit 1; }
+
+# AWS SECURITY REVIEW
+
+# Can only go back 90 days because that is the furthest back CloudTrail can check by default.
+DAYS_BACK=90
+START_TIME=$(date -v-"$DAYS_BACK"d +%s)
+END_TIME=$(date +%s)
+
+echo
+echo "========================================="
+echo " AWS SECURITY REVIEW (Last $DAYS_BACK days)"
+echo "========================================="
+
+run_check() {
+    local desc="$1"
+    local cmd="$2"
+
+    echo
+    echo "=== $desc ==="
+    
+    OUTPUT=$(eval "$cmd")
+    if [[ -z "$OUTPUT" || "$OUTPUT" == "[]" ]]; then
+        echo "No events found"
+    else
+        echo "$OUTPUT"
+    fi
+}
+
+# 1) Failed Console Logins
+run_check "Check for failed Console Logins" \
+"aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin \
+  --start-time $START_TIME --end-time $END_TIME \
+  --query 'Events[?contains(CloudTrailEvent, \`Failed\`)].{Time:EventTime,User:Username}' \
+  --output table"
+  exit
