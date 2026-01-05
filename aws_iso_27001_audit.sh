@@ -32,7 +32,7 @@ run_check() {
 
     echo
     echo "=== $desc ==="
-    
+
     OUTPUT=$(eval "$cmd")
     if [[ -z "$OUTPUT" || "$OUTPUT" == "[]" ]]; then
         echo "No events found"
@@ -41,11 +41,32 @@ run_check() {
     fi
 }
 
-# 1) Failed Console Logins
-run_check "Check for failed Console Logins" \
+# 1) Check for failed Console Logins
+run_check "Check for failed console logins" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin \
   --start-time $START_TIME --end-time $END_TIME \
   --query 'Events[?contains(CloudTrailEvent, \`Failed\`)].{Time:EventTime,User:Username}' \
   --output table"
-  exit
+
+# 2) Check for AccessDenied events
+
+# List of events to check
+EVENTS=(
+  "CreateUser" "CreateAccessKey" "DeleteAccessKey" "AttachUserPolicy" "DetachUserPolicy"
+  "PutUserPolicy" "CreateRole" "UpdateAssumeRolePolicy" "AttachRolePolicy" "PutRolePolicy"
+  "PutBucketPolicy" "PutBucketAcl" "PutObject" "DeleteObject" "AuthorizeSecurityGroupIngress"
+  "RevokeSecurityGroupIngress" "CreateSecurityGroup" "CreateKey" "DisableKey" "CreateStack"
+  "UpdateStack"
+)
+# NOTE 1/5/26 - Removed AssumeRole from EVENTS above due to high volume of benign AccessDenied events. Was taking too long and hanging. Find a way to add it in the future.
+
+for EVENT in "${EVENTS[@]}"; do
+    run_check "Check for AccessDenied in $EVENT events" \
+    "aws cloudtrail lookup-events \
+      --lookup-attributes AttributeKey=EventName,AttributeValue=$EVENT \
+      --start-time \"$START_TIME\" \
+      --end-time \"$END_TIME\" \
+      --query 'Events[?contains(CloudTrailEvent, \`AccessDenied\`)].{Time:EventTime,User:Username,Event:EventName}' \
+      --output table || true"
+done
