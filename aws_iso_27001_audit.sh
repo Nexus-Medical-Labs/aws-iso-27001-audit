@@ -70,3 +70,11 @@ for EVENT in "${EVENTS[@]}"; do
       --query 'Events[?contains(CloudTrailEvent, \`AccessDenied\`)].{Time:EventTime,User:Username,Event:EventName}' \
       --output table || true"
 done
+
+# 3) Check for root account usage events
+run_check "Check for root account usage events" \
+"aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=Username,AttributeValue=root \
+  --start-time $START_TIME --end-time $END_TIME \
+  --query 'Events[].{Time:EventTime,Event:EventName}' \
+  --output table"
