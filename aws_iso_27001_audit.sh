@@ -17,14 +17,13 @@ command -v jq >/dev/null 2>&1 || { echo "jq required"; exit 1; }
 # AWS SECURITY REVIEW
 
 # Can only go back 90 days because that is the furthest back CloudTrail can check by default.
-DAYS_BACK=90
-START_TIME=$(date -v-"$DAYS_BACK"d +%s)
-END_TIME=$(date +%s)
 
 echo
 echo "========================================="
-echo " AWS SECURITY REVIEW (Last $DAYS_BACK days)"
+echo " AWS SECURITY REVIEW"
 echo "========================================="
+echo
+echo "This only checks the last 90 days because it uses CloudTrail lookup-events which only goes back 90 days by default."
 
 run_check() {
     local desc="$1"
@@ -45,7 +44,6 @@ run_check() {
 run_check "Check for failed console logins" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin \
-  --start-time $START_TIME --end-time $END_TIME \
   --query 'Events[?contains(CloudTrailEvent, \`Failed\`)].{Time:EventTime,User:Username}' \
   --output table"
 
@@ -65,8 +63,6 @@ for EVENT in "${EVENTS[@]}"; do
     run_check "Check for AccessDenied in $EVENT events" \
     "aws cloudtrail lookup-events \
       --lookup-attributes AttributeKey=EventName,AttributeValue=$EVENT \
-      --start-time \"$START_TIME\" \
-      --end-time \"$END_TIME\" \
       --query 'Events[?contains(CloudTrailEvent, \`AccessDenied\`)].{Time:EventTime,User:Username,Event:EventName}' \
       --output table || true"
 done
@@ -75,7 +71,6 @@ done
 run_check "Check for root account usage events" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=Username,AttributeValue=root \
-  --start-time $START_TIME --end-time $END_TIME \
   --query 'Events[].{Time:EventTime,Event:EventName}' \
   --output table"
 
@@ -83,6 +78,5 @@ run_check "Check for root account usage events" \
 run_check "Check for any IAM Changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventSource,AttributeValue=iam.amazonaws.com \
-  --start-time $START_TIME --end-time $END_TIME \
   --query 'Events[].{Time:EventTime,User:Username,Event:EventName}' \
   --output table"
