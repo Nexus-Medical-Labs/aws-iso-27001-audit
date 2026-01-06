@@ -78,3 +78,11 @@ run_check "Check for root account usage events" \
   --start-time $START_TIME --end-time $END_TIME \
   --query 'Events[].{Time:EventTime,Event:EventName}' \
   --output table"
+
+# 4) Check for any IAM Changes
+run_check "Check for any IAM Changes" \
+"aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventSource,AttributeValue=iam.amazonaws.com \
+  --start-time $START_TIME --end-time $END_TIME \
+  --query 'Events[].{Time:EventTime,User:Username,Event:EventName}' \
+  --output table"
