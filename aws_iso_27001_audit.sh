@@ -23,7 +23,7 @@ echo "========================================="
 echo " AWS SECURITY REVIEW"
 echo "========================================="
 echo
-echo "This only checks the last 90 days because it uses CloudTrail lookup-events which only goes back 90 days by default."
+echo "NOTE: This only checks the last 90 days because it uses CloudTrail lookup-events which only goes back 90 days by default."
 
 run_check() {
     local desc="$1"
@@ -80,3 +80,22 @@ run_check "Check for any IAM Changes" \
   --lookup-attributes AttributeKey=EventSource,AttributeValue=iam.amazonaws.com \
   --query 'Events[].{Time:EventTime,User:Username,Event:EventName}' \
   --output table"
+
+# 5) Check for any security group ingress changes
+run_check "Check for any security group ingress changes" \
+"aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AuthorizeSecurityGroupIngress \
+  --query 'Events[].{Time:EventTime,User:Username}' \
+  --output table"
+
+# 6) Check for any S3 Bucket Policy Changes
+run_check "Check for any S3 Bucket Policy Changes" \
+"aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=PutBucketPolicy \
+  --query 'Events[].{Time:EventTime,User:Username}' \
+  --output table"
+
+echo
+echo "========================================="
+echo " AWS SECURITY REVIEW COMPLETE"
+echo "========================================="
