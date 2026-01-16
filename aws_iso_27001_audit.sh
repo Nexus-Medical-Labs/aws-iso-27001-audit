@@ -143,3 +143,29 @@ echo
 echo "========================================="
 echo " AWS RDS scan complete"
 echo "========================================="
+
+
+echo
+echo "========================================="
+echo " List all IAM users and gather summary details for each"
+echo "========================================="
+# List all IAM users and gather summary details for each:
+# - username, userId, arn, createDate, passwordLastUsed, groups, attached policies, access keys, mfa devices
+
+jq -n \
+  --arg generated_at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  '{generated_at:$generated_at}'
+
+
+# Fetch all users
+users_json=$(aws iam list-users --query 'Users[].UserName' --output text)
+
+# Iterate usernames to avoid subshell issues
+for username in $users_json; do
+  aws iam get-user --user-name "$username" --output json 2>/dev/null || echo '{"User":{}}'
+  aws iam list-groups-for-user --user-name "$username" --output json 2>/dev/null || echo '{"Groups":[]}'
+  aws iam list-attached-user-policies --user-name "$username" --output json 2>/dev/null || echo '{"AttachedPolicies":[]}'
+  aws iam list-access-keys --user-name "$username" --output json 2>/dev/null || echo '{"AccessKeyMetadata":[]}'
+  aws iam list-mfa-devices --user-name "$username" --output json 2>/dev/null || echo '{"MFADevices":[]}'
+done
+echo "========================================="
