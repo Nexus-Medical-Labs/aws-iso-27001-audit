@@ -14,6 +14,9 @@ echo "This report generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 command -v aws >/dev/null 2>&1 || { echo "aws CLI required"; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq required"; exit 1; }
 
+# Disable AWS CLI paging
+export AWS_PAGER=""
+
 # AWS SECURITY REVIEW
 
 # Can only go back 90 days because that is the furthest back CloudTrail can check by default.
