@@ -102,3 +102,44 @@ echo
 echo "========================================="
 echo " AWS SECURITY REVIEW COMPLETE"
 echo "========================================="
+
+
+# Scan all RDS instances across all regions for backup settings and recent snapshots.
+echo
+echo "========================================="
+echo " Scan all RDS instances across all regions for backup settings and recent snapshots."
+echo "========================================="
+
+TMPDIR=$(mktemp -d)
+trap 'rm -rf "$TMPDIR"' EXIT
+
+# Get all regions
+REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output text)
+
+out_file="$TMPDIR/instances.jsonl"
+: > "$out_file"
+
+for region in $REGIONS; do
+  echo "Scanning region: $region"
+  # List DB instances in region
+  aws rds describe-db-instances --region "$region" --output table 2>/dev/null || echo '{"DBInstances":[]}'
+
+  # Same as above but now just get the DB instance IDs in region
+  instance_ids=$(aws rds describe-db-instances --region "$region" --query 'DBInstances[].DBInstanceIdentifier' --output text 2>/dev/null || echo "")
+
+  for id in $instance_ids; do
+    # List DB instance snapshots
+    aws rds describe-db-snapshots --region "$region" --db-instance-identifier "$id" --output table 2>/dev/null || echo '{"DBSnapshots":[]}'
+
+    # search other regions for snapshot copies referencing this instance
+    for rr in $REGIONS; do
+      if [[ "$rr" == "$region" ]]; then continue; fi
+      aws rds describe-db-snapshots --region "$rr" --query "DBSnapshots[?DBInstanceIdentifier=='$id']" --output table 2>/dev/null || echo '[]'
+    done
+  done
+done
+
+echo
+echo "========================================="
+echo " AWS RDS scan complete"
+echo "========================================="
