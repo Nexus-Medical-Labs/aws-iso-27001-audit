@@ -110,14 +110,8 @@ echo "========================================="
 echo " Scan all RDS instances across all regions for backup settings and recent snapshots."
 echo "========================================="
 
-TMPDIR=$(mktemp -d)
-trap 'rm -rf "$TMPDIR"' EXIT
-
 # Get all regions
 REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output text)
-
-out_file="$TMPDIR/instances.jsonl"
-: > "$out_file"
 
 for region in $REGIONS; do
   echo "Scanning region: $region"
