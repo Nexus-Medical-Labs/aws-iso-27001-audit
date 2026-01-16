@@ -17,6 +17,9 @@ command -v jq >/dev/null 2>&1 || { echo "jq required"; exit 1; }
 # Disable AWS CLI paging
 export AWS_PAGER=""
 
+# Get all regions
+REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output text)
+
 # AWS SECURITY REVIEW
 
 # Can only go back 90 days because that is the furthest back CloudTrail can check by default.
@@ -109,9 +112,6 @@ echo
 echo "========================================="
 echo " Scan all RDS instances across all regions for backup settings and recent snapshots."
 echo "========================================="
-
-# Get all regions
-REGIONS=$(aws ec2 describe-regions --query 'Regions[].RegionName' --output text)
 
 for region in $REGIONS; do
   echo "Scanning region: $region"
