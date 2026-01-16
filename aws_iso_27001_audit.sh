@@ -48,7 +48,7 @@ run_check "Check for failed console logins" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin \
   --query 'Events[?contains(CloudTrailEvent, \`Failed\`)].{Time:EventTime,User:Username}' \
-  --output table"
+  --output json"
 
 # 2) Check for AccessDenied events
 
@@ -67,7 +67,7 @@ for EVENT in "${EVENTS[@]}"; do
     "aws cloudtrail lookup-events \
       --lookup-attributes AttributeKey=EventName,AttributeValue=$EVENT \
       --query 'Events[?contains(CloudTrailEvent, \`AccessDenied\`)].{Time:EventTime,User:Username,Event:EventName}' \
-      --output table || true"
+      --output json || true"
 done
 
 # 3) Check for root account usage events
@@ -75,28 +75,28 @@ run_check "Check for root account usage events" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=Username,AttributeValue=root \
   --query 'Events[].{Time:EventTime,Event:EventName}' \
-  --output table"
+  --output json"
 
 # 4) Check for any IAM Changes
 run_check "Check for any IAM Changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventSource,AttributeValue=iam.amazonaws.com \
   --query 'Events[].{Time:EventTime,User:Username,Event:EventName}' \
-  --output table"
+  --output json"
 
 # 5) Check for any security group ingress changes
 run_check "Check for any security group ingress changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=AuthorizeSecurityGroupIngress \
   --query 'Events[].{Time:EventTime,User:Username}' \
-  --output table"
+  --output json"
 
 # 6) Check for any S3 Bucket Policy Changes
 run_check "Check for any S3 Bucket Policy Changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=PutBucketPolicy \
   --query 'Events[].{Time:EventTime,User:Username}' \
-  --output table"
+  --output json"
 
 echo
 echo "========================================="
@@ -122,19 +122,19 @@ out_file="$TMPDIR/instances.jsonl"
 for region in $REGIONS; do
   echo "Scanning region: $region"
   # List DB instances in region
-  aws rds describe-db-instances --region "$region" --output table 2>/dev/null || echo '{"DBInstances":[]}'
+  aws rds describe-db-instances --region "$region" --output json 2>/dev/null || echo '{"DBInstances":[]}'
 
   # Same as above but now just get the DB instance IDs in region
   instance_ids=$(aws rds describe-db-instances --region "$region" --query 'DBInstances[].DBInstanceIdentifier' --output text 2>/dev/null || echo "")
 
   for id in $instance_ids; do
     # List DB instance snapshots
-    aws rds describe-db-snapshots --region "$region" --db-instance-identifier "$id" --output table 2>/dev/null || echo '{"DBSnapshots":[]}'
+    aws rds describe-db-snapshots --region "$region" --db-instance-identifier "$id" --output json 2>/dev/null || echo '{"DBSnapshots":[]}'
 
     # search other regions for snapshot copies referencing this instance
     for rr in $REGIONS; do
       if [[ "$rr" == "$region" ]]; then continue; fi
-      aws rds describe-db-snapshots --region "$rr" --query "DBSnapshots[?DBInstanceIdentifier=='$id']" --output table 2>/dev/null || echo '[]'
+      aws rds describe-db-snapshots --region "$rr" --query "DBSnapshots[?DBInstanceIdentifier=='$id']" --output json 2>/dev/null || echo '[]'
     done
   done
 done
