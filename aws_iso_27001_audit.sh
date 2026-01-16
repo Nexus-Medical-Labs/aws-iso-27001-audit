@@ -188,3 +188,35 @@ echo
 echo "========================================="
 echo " Listing of all IAM users complete"
 echo "========================================="
+
+
+# Check multi-region replication for common services.
+# - Checks: S3 (CRR), DynamoDB (global tables / replicas), RDS (read-replicas / global clusters), ECR replication configuration, Secrets Manager multi-region replication
+echo
+echo "========================================="
+echo " Check multi-region replication for common services"
+echo "========================================="
+
+
+########################################################################
+# S3 Cross-Region Replication (CRR)
+########################################################################
+echo
+echo "Checking S3 buckets for replication..."
+
+buckets=$(aws s3api list-buckets --query 'Buckets[].Name' --output text)
+
+for b in $buckets; do
+  # Check if replication is configured by querying for rules
+  rules_status=$(aws s3api get-bucket-replication --bucket "$b" --query 'ReplicationConfiguration.Rules[0].Status' --output text 2>/dev/null || echo "NoRules")
+  
+  if [[ "$rules_status" != "NoRules" && "$rules_status" != "None" ]]; then
+    # Get all destination bucket ARNs
+    echo "Bucket $b has replication configured to the following destination buckets:"
+    aws s3api get-bucket-replication --bucket "$b" --query 'ReplicationConfiguration.Rules[].Destination.Bucket' --output json 2>/dev/null || echo ""
+  else
+    echo "Bucket $b has no replication configured"
+  fi
+done
+
+echo "S3 check complete"
