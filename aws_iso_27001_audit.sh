@@ -199,7 +199,7 @@ echo "========================================="
 
 
 ########################################################################
-# S3 Cross-Region Replication (CRR)
+# S3 Cross-Region Replication
 ########################################################################
 echo
 echo "Checking S3 buckets for replication..."
@@ -220,3 +220,18 @@ for b in $buckets; do
 done
 
 echo "S3 check complete"
+
+
+########################################################################
+# RDS – Cross-Region Replication
+########################################################################
+echo "Checking RDS instances for replication..."
+
+for r in $REGIONS; do
+  echo "Scanning region: $r"
+  
+  # Get primary instances and their replicas
+  aws rds describe-db-instances --region "$r" --query 'DBInstances[?length(ReadReplicaDBInstanceIdentifiers)>`0`].[DBInstanceIdentifier,ReadReplicaDBInstanceIdentifiers]' --output json 2>/dev/null || echo ""
+done
+
+echo "RDS check complete"
