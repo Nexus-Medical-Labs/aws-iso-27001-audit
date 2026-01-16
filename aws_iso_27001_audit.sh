@@ -168,4 +168,29 @@ for username in $users_json; do
   aws iam list-access-keys --user-name "$username" --output json 2>/dev/null || echo '{"AccessKeyMetadata":[]}'
   aws iam list-mfa-devices --user-name "$username" --output json 2>/dev/null || echo '{"MFADevices":[]}'
 done
+
+
+# IAM Identity Center (SSO) users.
+echo
+echo "===== List all identity center (SSO) users for us-east-1 ====="
+
+for region in $REGIONS; do
+  echo "Scanning region: $region"
+
+  # Get Identity Center instance details (if any)
+  INSTANCE_INFO=$(aws sso-admin list-instances --region "$region" --query 'Instances[0].[IdentityStoreId]' --output text 2>/dev/null || true)
+
+  IDENTITY_STORE_ID=$(echo "$INSTANCE_INFO" | awk '{print $1}')
+
+  if [ -z "$IDENTITY_STORE_ID" ] || [ "$IDENTITY_STORE_ID" == "None" ]; then
+    echo "No IAM Identity Center instance found in "$region""
+  else
+    # List Identity Center users
+    aws identitystore list-users --identity-store-id "$IDENTITY_STORE_ID" --region "$region" --query 'Users[].UserName' --output json
+  fi
+done
+
+echo
+echo "========================================="
+echo " Listing of all IAM users complete"
 echo "========================================="
