@@ -235,3 +235,17 @@ for r in $REGIONS; do
 done
 
 echo "RDS check complete"
+
+
+########################################################################
+# ECR – Replication configuration
+########################################################################
+echo "Checking ECR replication configuration..."
+
+for r in $REGIONS; do
+  echo "Scanning region: $r"
+  aws ecr describe-registry --region "$r" --output json
+done
+
+echo "ECR check complete"
+
