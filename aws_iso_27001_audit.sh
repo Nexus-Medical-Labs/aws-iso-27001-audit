@@ -249,3 +249,26 @@ done
 
 echo "ECR check complete"
 
+
+########################################################################
+# Secrets Manager – Cross-Region Replication
+########################################################################
+echo "Checking Secrets Manager for cross-region replication..."
+
+for r in $REGIONS; do
+  echo "Scanning region: $r"
+
+  secrets=$(aws secretsmanager list-secrets --region "$r" --query 'SecretList[].ARN' --output text 2>/dev/null || echo "")
+
+  for s in $secrets; do
+    echo "Getting replica regions for Secret ARN: $s"
+    replica_regions=$(aws secretsmanager describe-secret --secret-id "$s" --query 'ReplicaRegions[].Region' --output json 2>/dev/null || echo '[]')
+
+    if [[ "$replica_regions" == "[]" || "$replica_regions" == "null" || -z "$replica_regions" ]]; then
+      echo "No replica regions found"
+    else
+      echo "$replica_regions"
+    fi
+  done
+done
+echo "Secrets Manager check complete"
