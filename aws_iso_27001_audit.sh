@@ -344,3 +344,15 @@ for BUCKET in $S3_BUCKETS; do
     echo "No bucket policy found"
   fi
 done
+
+
+############################################
+# RDS/Aurora – Encryption at rest
+############################################
+echo
+echo "Checking for RDS/Aurora encryption at rest..."
+
+# Get RDS instances with named keys
+aws rds describe-db-instances \
+  --query 'DBInstances[].{DBInstanceIdentifier:DBInstanceIdentifier,StorageEncrypted:StorageEncrypted,KmsKeyId:KmsKeyId}' \
+  --output json
