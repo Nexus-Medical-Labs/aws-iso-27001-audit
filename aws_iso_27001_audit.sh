@@ -295,3 +295,21 @@ echo
 echo "Checking for EC2/EBS default encryption set to true for creation of new instances..."
 
 aws ec2 get-ebs-encryption-by-default --query 'EbsEncryptionByDefault' --output json
+
+
+############################################
+# S3 – Encryption at rest
+# No need to search every region. The list of S3 buckets will be the same for all of them.
+# (S3 bucket names are globally unique across all AWS accounts and regions. While each bucket exists in a specific region, the list-buckets API call is a global operation that always returns every bucket you own.)
+############################################
+echo
+echo "Checking for default setting of S3 encryption at rest..."
+
+S3_BUCKETS=$(aws s3api list-buckets --query 'Buckets[].Name' --output text)
+
+for BUCKET in $S3_BUCKETS; do
+  echo
+  echo "Bucket: $BUCKET"
+
+  aws s3api get-bucket-encryption --bucket "$BUCKET" --output json
+done
