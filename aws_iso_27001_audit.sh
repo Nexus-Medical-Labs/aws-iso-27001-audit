@@ -303,7 +303,7 @@ done
 
 
 ############################################
-# S3 – Encryption at rest
+# S3 – Encryption at rest and in transit (TLS enforcement)
 # No need to search every region. The list of S3 buckets will be the same for all of them.
 # (S3 bucket names are globally unique across all AWS accounts and regions. While each bucket exists in a specific region, the list-buckets API call is a global operation that always returns every bucket you own.)
 ############################################
@@ -317,4 +317,30 @@ for BUCKET in $S3_BUCKETS; do
   echo "Bucket: $BUCKET"
 
   aws s3api get-bucket-encryption --bucket "$BUCKET" --output json
+done
+
+echo
+echo "Checking for S3 Encryption In Transit (TLS Enforcement)..."
+
+for BUCKET in $S3_BUCKETS; do
+  echo
+  echo "Bucket: $BUCKET"
+
+  POLICY=$(aws s3api get-bucket-policy --bucket "$BUCKET" --query 'Policy' --output text 2>/dev/null || echo "")
+
+  if [[ -n "$POLICY" ]]; then
+    echo "Bucket policy found:"
+    echo "$POLICY"
+
+    # Check if policy has both Effect:Deny and SecureTransport:false
+    if echo "$POLICY" | grep -q '"Effect"[[:space:]]*:[[:space:]]*"Deny"' && \
+       echo "$POLICY" | grep -q '"aws:SecureTransport"[[:space:]]*:[[:space:]]*"false"'; then
+      echo "SecureTransport is enforced"
+    else
+      echo
+      echo "SecureTransport is not enforced"
+    fi
+  else
+    echo "No bucket policy found"
+  fi
 done
