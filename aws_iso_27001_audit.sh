@@ -362,3 +362,18 @@ for r in $REGIONS; do
   --query 'DBInstances[].{DBInstanceIdentifier:DBInstanceIdentifier,StorageEncrypted:StorageEncrypted,KmsKeyId:KmsKeyId}' \
   --output json
 done
+
+############################################
+# RDS/AURORA – Encryption in transit (TLS certificate issued by Certificate Authority)
+############################################
+echo
+echo "Checking for RDS/Aurora encryption in transit (TLS certificate issued by Certificate Authority)..."
+
+for r in $REGIONS; do
+  echo
+  echo "Scanning region: $r"
+
+  aws rds describe-db-instances --region "$r" \
+    --query 'DBInstances[].{DBInstanceIdentifier:DBInstanceIdentifier,CAIdentifier:CertificateDetails.CAIdentifier}' \
+    --output json
+done
