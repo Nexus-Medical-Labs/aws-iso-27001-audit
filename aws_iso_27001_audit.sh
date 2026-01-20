@@ -285,16 +285,21 @@ echo "Secrets Manager check complete"
 # Check for encryption at rest. No separate check for in transit needed becauseEBS encryption in transit is automatically enabled when you encrypt a volume at rest.
 # (EBS encryption in transit is not a separate setting - it's an inherent feature of encrypted EBS volumes. The encryption happens in the hypervisor layer between the instance and the storage, using the same KMS key.)
 ############################################
-echo
-echo "Checking for EC2/EBS encryption at rest and in transit..."
+for r in $REGIONS; do
+  echo
+  echo "Scanning region: $r"
+  
+  echo
+  echo "Checking for EC2/EBS encryption at rest and in transit..."
 
-aws ec2 describe-volumes --query 'Volumes[].{VolumeId:VolumeId,Encrypted:Encrypted,KmsKeyId:KmsKeyId}' --output json
+  aws ec2 describe-volumes --region "$r" --query 'Volumes[].{VolumeId:VolumeId,Encrypted:Encrypted,KmsKeyId:KmsKeyId}' --output json
 
-# Also check that encryption for new EC2 instances is enforced by default
-echo
-echo "Checking for EC2/EBS default encryption set to true for creation of new instances..."
+  # Also check that encryption for new EC2 instances is enforced by default
+  echo
+  echo "Checking for EC2/EBS default encryption set to true for creation of new instances..."
 
-aws ec2 get-ebs-encryption-by-default --query 'EbsEncryptionByDefault' --output json
+  aws ec2 get-ebs-encryption-by-default --region "$r" --query 'EbsEncryptionByDefault' --output json
+done
 
 
 ############################################
