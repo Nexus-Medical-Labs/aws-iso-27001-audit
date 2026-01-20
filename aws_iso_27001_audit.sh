@@ -272,3 +272,18 @@ for r in $REGIONS; do
   done
 done
 echo "Secrets Manager check complete"
+
+
+########################################################################
+# The next few sections check for encryption at rest and in transit.
+# - At rest: Storage encryption using AES-256 or AWS KMS is confirmed for EC2 EBS volumes, S3 buckets and RDS/Aurora databases.
+# - In transit: TLS 1.2+ enforcement is confirmed via load balancer SSL policies, S3 SecureTransport bucket policies, and database SSL configuration.
+########################################################################
+
+############################################
+# EC2 – EBS ENCRYPTION AT REST
+############################################
+echo
+echo " Checking for EC2/EBS Encryption at Rest (AES-256)..."
+
+aws ec2 describe-volumes --query 'Volumes[].{VolumeId:VolumeId,Encrypted:Encrypted,KmsKeyId:KmsKeyId}' --output json
