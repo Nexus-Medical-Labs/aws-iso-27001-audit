@@ -353,6 +353,12 @@ echo
 echo "Checking for RDS/Aurora encryption at rest..."
 
 # Get RDS instances with named keys
-aws rds describe-db-instances \
+
+for r in $REGIONS; do
+  echo
+  echo "Scanning region: $r"
+
+  aws rds describe-db-instances --region "$r" \
   --query 'DBInstances[].{DBInstanceIdentifier:DBInstanceIdentifier,StorageEncrypted:StorageEncrypted,KmsKeyId:KmsKeyId}' \
   --output json
+done
