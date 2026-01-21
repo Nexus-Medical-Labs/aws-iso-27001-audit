@@ -347,7 +347,7 @@ done
 
 
 ############################################
-# RDS/Aurora – Encryption at rest
+# RDS/Aurora – Encryption at rest and in transit (TLS certificate issued by Certificate Authority)
 ############################################
 echo
 echo "Checking for RDS/Aurora encryption at rest..."
@@ -363,9 +363,6 @@ for r in $REGIONS; do
   --output json
 done
 
-############################################
-# RDS/AURORA – Encryption in transit (TLS certificate issued by Certificate Authority)
-############################################
 echo
 echo "Checking for RDS/Aurora encryption in transit (TLS certificate issued by Certificate Authority)..."
 
@@ -376,4 +373,32 @@ for r in $REGIONS; do
   aws rds describe-db-instances --region "$r" \
     --query 'DBInstances[].{DBInstanceIdentifier:DBInstanceIdentifier,CAIdentifier:CertificateDetails.CAIdentifier}' \
     --output json
+done
+
+
+############################################
+# ALB – Encryption in transit (TLS 1.2+)
+# Note: ALBs don't have encryption at rest to scan for because they don't store data - they're a routing/proxy service that forwards traffic to backend targets, so we only scan for encryption in transit.
+############################################
+# This checks the listeners for each load balancer. The listeners are where TLS/SSL termination occurs - they're the entry point for encrypted traffic.
+# For listener, verify the following:
+#  - Protocol: TCP, HTTPS, etc. For example, whether it's using HTTPS/TLS (encrypted) vs HTTP (unencrypted)
+#  - SslPolicy: Which TLS versions and cipher suites are allowed (e.g., ELBSecurityPolicy-TLS-1-2-2017-01)
+echo
+echo "Checking for ALB encryption in transit (TLS 1.2+)"
+
+for r in $REGIONS; do
+  echo
+  echo "Scanning region: $r"
+  # Get all load balancer ARNs
+  LB_ARNS=$(aws elbv2 describe-load-balancers --region "$r" --query 'LoadBalancers[].LoadBalancerArn' --output text 2>/dev/null) || LB_ARNS=""
+
+  if [[ -z "$LB_ARNS" ]]; then
+    echo "No load balancers found."
+  else
+    for arn in $LB_ARNS; do
+      echo "Load Balancer ARN: $arn"
+      aws elbv2 describe-listeners --load-balancer-arn "$arn" --query 'Listeners[].{ListenerArn:ListenerArn,Port:Port,Protocol:Protocol,SslPolicy:SslPolicy}' --output json
+    done
+  fi
 done
