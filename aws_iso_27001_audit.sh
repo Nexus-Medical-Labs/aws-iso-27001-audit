@@ -5,6 +5,27 @@ echo "========================================="
 echo " START AWS ISO 27001 AUDIT"
 echo "========================================="
 
+# Mapping: script checks -> ISO/IEC 27001 Annex A (2022) Clause 8 control IDs
+# - Failed console logins (CloudTrail): A.8.15 Logging; A.8.16 Monitoring activities; A.8.5 Secure authentication
+# - AccessDenied events for sensitive APIs (CloudTrail): A.8.2 Privileged access rights; A.8.3 Information access restriction; A.8.15 Logging; A.8.16 Monitoring activities
+# - Root account usage events (CloudTrail): A.8.2 Privileged access rights; A.8.15 Logging; A.8.16 Monitoring activities
+# - IAM changes (CloudTrail): A.8.32 Change management; A.8.3 Information access restriction; A.8.15 Logging; A.8.16 Monitoring activities
+# - Security group ingress changes: A.8.9 Configuration management; A.8.20 Network security; A.8.32 Change management; A.8.15 Logging
+# - S3 bucket policy changes: A.8.3 Information access restriction; A.8.9 Configuration management; A.8.15 Logging
+# - RDS backup settings & snapshot recency: A.8.13 Information backup; A.8.14 Redundancy of information processing facilities; A.8.9 Configuration management
+# - Cross-region RDS snapshot search: A.8.14 Redundancy; A.8.13 Information backup; A.8.16 Monitoring activities
+# - IAM user inventory (passwordLastUsed, groups, policies, access keys, MFA): A.8.2 Privileged access rights; A.8.3 Information access restriction; A.8.5 Secure authentication
+# - IAM Identity Center (SSO) user listing: A.8.3 Information access restriction; A.8.2 Privileged access rights
+# - Multi-region replication checks (S3 CRR, DynamoDB globals, RDS replicas, ECR replication, Secrets Manager replicas): A.8.14 Redundancy; A.8.13 Information backup; A.8.16 Monitoring activities
+# - EBS / default encryption checks: A.8.24 Use of cryptography; A.8.9 Configuration management
+# - S3 encryption and SecureTransport (TLS) checks: A.8.24 Use of cryptography; A.8.20 Network security
+# - RDS/Aurora KMS key & CA checks: A.8.24 Use of cryptography; A.8.20 Network security
+# - ALB listener SSL policy (TLS 1.2+) checks: A.8.24 Use of cryptography; A.8.20 Network security
+# - ECR registry/replication checks: A.8.13 Information backup; A.8.14 Redundancy; A.8.9 Configuration management
+# - Secrets Manager replication checks: A.8.13 Information backup; A.8.14 Redundancy; A.8.24 Use of cryptography
+# - General CloudTrail + AWS API queries (audit/log collection): A.8.15 Logging; A.8.16 Monitoring activities; A.8.32 Change management
+
+
 echo
 echo "This report generated at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
@@ -47,6 +68,7 @@ run_check() {
 }
 
 # 1) Check for failed Console Logins
+# Controls: A.8.15 Logging; A.8.16 Monitoring activities; A.8.5 Secure authentication
 run_check "Check for failed console logins" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=ConsoleLogin \
@@ -66,7 +88,9 @@ EVENTS=(
 # NOTE 1/5/26 - Removed AssumeRole from EVENTS above due to high volume of benign AccessDenied events. Was taking too long and hanging. Find a way to add it in the future.
 
 for EVENT in "${EVENTS[@]}"; do
-    run_check "Check for AccessDenied in $EVENT events" \
+  # Controls: A.8.2 Privileged access rights; A.8.3 Information access restriction; A.8.15 Logging; A.8.16 Monitoring activities
+  # Purpose: detect denied attempts to perform sensitive actions (possible privilege misuse or misconfiguration)
+  run_check "Check for AccessDenied in $EVENT events" \
     "aws cloudtrail lookup-events \
       --lookup-attributes AttributeKey=EventName,AttributeValue=$EVENT \
       --query 'Events[?contains(CloudTrailEvent, \`AccessDenied\`)].{Time:EventTime,User:Username,Event:EventName}' \
@@ -74,6 +98,7 @@ for EVENT in "${EVENTS[@]}"; do
 done
 
 # 3) Check for root account usage events
+# Controls: A.8.2 Privileged access rights; A.8.15 Logging; A.8.16 Monitoring activities
 run_check "Check for root account usage events" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=Username,AttributeValue=root \
@@ -81,6 +106,7 @@ run_check "Check for root account usage events" \
   --output json"
 
 # 4) Check for any IAM Changes
+# Controls: A.8.32 Change management; A.8.3 Information access restriction; A.8.15 Logging; A.8.16 Monitoring activities
 run_check "Check for any IAM Changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventSource,AttributeValue=iam.amazonaws.com \
@@ -88,6 +114,7 @@ run_check "Check for any IAM Changes" \
   --output json"
 
 # 5) Check for any security group ingress changes
+# Controls: A.8.9 Configuration management; A.8.20 Network security; A.8.32 Change management; A.8.15 Logging
 run_check "Check for any security group ingress changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=AuthorizeSecurityGroupIngress \
@@ -95,6 +122,7 @@ run_check "Check for any security group ingress changes" \
   --output json"
 
 # 6) Check for any S3 Bucket Policy Changes
+# Controls: A.8.3 Information access restriction; A.8.9 Configuration management; A.8.15 Logging
 run_check "Check for any S3 Bucket Policy Changes" \
 "aws cloudtrail lookup-events \
   --lookup-attributes AttributeKey=EventName,AttributeValue=PutBucketPolicy \
@@ -108,6 +136,7 @@ echo "========================================="
 
 
 # Scan all RDS instances across all regions for backup settings and recent snapshots.
+# Controls: A.8.13 Information backup; A.8.14 Redundancy of information processing facilities; A.8.9 Configuration management
 echo
 echo "========================================="
 echo " Scan all RDS instances across all regions for backup settings and recent snapshots."
@@ -126,6 +155,7 @@ for region in $REGIONS; do
     aws rds describe-db-snapshots --region "$region" --db-instance-identifier "$id" --output json 2>/dev/null || echo '{"DBSnapshots":[]}'
 
     # search other regions for snapshot copies referencing this instance
+    # Controls: A.8.14 Redundancy; A.8.13 Information backup; A.8.16 Monitoring activities
     echo "Searching other regions for snapshots of instance $id..."
     for rr in $REGIONS; do
       if [[ "$rr" == "$region" ]]; then continue; fi
@@ -147,6 +177,8 @@ echo " AWS RDS scan complete"
 echo "========================================="
 
 
+# IAM user inventory and credential checks
+# Controls: A.8.2 Privileged access rights; A.8.3 Information access restriction; A.8.5 Secure authentication
 echo
 echo "========================================="
 echo " List all IAM users and gather summary details for each"
@@ -173,6 +205,7 @@ done
 
 
 # IAM Identity Center (SSO) users.
+# Controls: A.8.3 Information access restriction; A.8.2 Privileged access rights
 echo
 echo "===== List all identity center (SSO) users for us-east-1 ====="
 
@@ -209,6 +242,8 @@ echo "========================================="
 ########################################################################
 # S3 Cross-Region Replication
 ########################################################################
+# S3 Cross-Region Replication check
+# Controls: A.8.14 Redundancy of information processing facilities; A.8.13 Information backup
 echo
 echo "Checking S3 buckets for replication..."
 
@@ -234,6 +269,7 @@ echo "S3 check complete"
 # RDS – Cross-Region Replication
 ########################################################################
 echo "Checking RDS instances for replication..."
+## Controls: A.8.14 Redundancy; A.8.13 Information backup
 
 for r in $REGIONS; do
   echo "Scanning region: $r"
@@ -249,6 +285,7 @@ echo "RDS check complete"
 # ECR – Replication configuration
 ########################################################################
 echo "Checking ECR replication configuration..."
+# Controls: A.8.13 Information backup; A.8.14 Redundancy; A.8.9 Configuration management
 
 for r in $REGIONS; do
   echo "Scanning region: $r"
@@ -262,6 +299,7 @@ echo "ECR check complete"
 # Secrets Manager – Cross-Region Replication
 ########################################################################
 echo "Checking Secrets Manager for cross-region replication..."
+# Controls: A.8.13 Information backup; A.8.14 Redundancy; A.8.24 Use of cryptography
 
 for r in $REGIONS; do
   echo "Scanning region: $r"
@@ -290,7 +328,8 @@ echo "Secrets Manager check complete"
 
 ############################################
 # EC2 – EBS encryption at rest and in transit
-# Check for encryption at rest. No separate check for in transit needed becauseEBS encryption in transit is automatically enabled when you encrypt a volume at rest.
+# Controls: A.8.24 Use of cryptography; A.8.9 Configuration management
+# Check for encryption at rest. No separate check for in transit needed because EBS encryption in transit is automatically enabled when you encrypt a volume at rest.
 # (EBS encryption in transit is not a separate setting - it's an inherent feature of encrypted EBS volumes. The encryption happens in the hypervisor layer between the instance and the storage, using the same KMS key.)
 ############################################
 for r in $REGIONS; do
@@ -315,6 +354,7 @@ done
 # No need to search every region. The list of S3 buckets will be the same for all of them.
 # (S3 bucket names are globally unique across all AWS accounts and regions. While each bucket exists in a specific region, the list-buckets API call is a global operation that always returns every bucket you own.)
 ############################################
+## Controls: A.8.24 Use of cryptography; A.8.9 Configuration management
 echo
 echo "Checking for default setting of S3 encryption at rest..."
 
@@ -327,6 +367,7 @@ for BUCKET in $S3_BUCKETS; do
   aws s3api get-bucket-encryption --bucket "$BUCKET" --output json
 done
 
+## Controls: A.8.24 Use of cryptography; A.8.20 Network security
 echo
 echo "Checking for S3 Encryption In Transit (TLS Enforcement)..."
 
@@ -357,6 +398,7 @@ done
 ############################################
 # RDS/Aurora – Encryption at rest and in transit (TLS certificate issued by Certificate Authority)
 ############################################
+## Controls: A.8.24 Use of cryptography; A.8.9 Configuration management
 echo
 echo "Checking for RDS/Aurora encryption at rest..."
 
@@ -371,6 +413,7 @@ for r in $REGIONS; do
   --output json
 done
 
+## Controls: A.8.24 Use of cryptography; A.8.20 Network security
 echo
 echo "Checking for RDS/Aurora encryption in transit (TLS certificate issued by Certificate Authority)..."
 
@@ -392,6 +435,7 @@ done
 # For listener, verify the following:
 #  - Protocol: TCP, HTTPS, etc. For example, whether it's using HTTPS/TLS (encrypted) vs HTTP (unencrypted)
 #  - SslPolicy: Which TLS versions and cipher suites are allowed (e.g., ELBSecurityPolicy-TLS-1-2-2017-01)
+## Controls: A.8.24 Use of cryptography; A.8.20 Network security
 echo
 echo "Checking for ALB encryption in transit (TLS 1.2+)"
 
