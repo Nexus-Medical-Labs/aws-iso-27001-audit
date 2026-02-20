@@ -126,11 +126,19 @@ for region in $REGIONS; do
     aws rds describe-db-snapshots --region "$region" --db-instance-identifier "$id" --output json 2>/dev/null || echo '{"DBSnapshots":[]}'
 
     # search other regions for snapshot copies referencing this instance
+    echo "Searching other regions for snapshots of instance $id..."
     for rr in $REGIONS; do
       if [[ "$rr" == "$region" ]]; then continue; fi
-      aws rds describe-db-snapshots --region "$rr" --query "DBSnapshots[?DBInstanceIdentifier=='$id']" --output json 2>/dev/null || echo '[]'
+      echo "  Checking region: $rr"
+      snapshot_output=$(aws rds describe-db-snapshots --region "$rr" --query "DBSnapshots[?DBInstanceIdentifier=='$id']" --output json 2>/dev/null || echo "")
+      if [[ -z "$snapshot_output" || "$snapshot_output" == "[]" ]]; then
+        echo '    No snapshots found'
+      else
+        echo "$snapshot_output"
+      fi
     done
   done
+  echo
 done
 
 echo
